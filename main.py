@@ -1,49 +1,38 @@
 import multiprocessing
-import requests
-import os
-
-with open('configs/clients.config', 'r') as file:
-    clients = file.read().splitlines()
 
 
 def main():
-    def get_ip_addresses():
-        import netifaces
-
-        interfaces = netifaces.interfaces()
-        ips = []
-        for interface in interfaces:
-            if netifaces.AF_INET in netifaces.ifaddresses(interface):
-                ips.append(netifaces.ifaddresses(interface)[netifaces.AF_INET][0]['addr'])
-        return ips
-
-    ip_addresses = get_ip_addresses()
-    print("Select the ip address where the chat will be launched!")
-    for index, ip in enumerate(ip_addresses, start=1):
-        print(f"{index}) {ip}")
-    while True:
-        user_choice = input("Choose an IP address by entering its corresponding number: ")
-        if user_choice.isnumeric():
-            index = int(user_choice)
-            if 1 <= index <= len(ip_addresses):
-                host = ip_addresses[index - 1]
-                nick = input("nick:")
-                port = input("port:")
-                server(host, nick, port)
-                break
-            else:
-                print("Invalid input. Please enter a valid number.")
-        else:
-            print("Invalid input. Please enter a valid number.")
+    loads_configs()
+    process_server = multiprocessing.Process(target=server, args=(host, port, nick, clients))
+    process_server.start()
+    print(f'http://{host}:{port}')
 
 
-def server(host, nick, port):
+def loads_configs():
+    global clients, host, port, nick
+    config = {}
+
+    with open('configs/clients.config', 'r') as file:
+        clients = file.read().splitlines()
+
+    with open('configs/config.config', 'r') as file:
+        for line in file:
+            key, value = line.strip().split('=')
+            config[key] = value
+
+    host = config.get('ip', '')
+    port = config.get('port', '')
+    nick = config.get('nick', '')
+
+
+def server(host, port, nick, clients):
     from markupsafe import escape
     from flask import Flask, request, render_template, jsonify
     from flask_wtf.csrf import CSRFProtect, validate_csrf
     from werkzeug.exceptions import BadRequest
     from waitress import serve
     import binascii
+    import os
 
     messages = []
 
@@ -68,7 +57,7 @@ def server(host, nick, port):
                 message = request.form['message']
                 name = request.form['name']
 
-                multiprocessing.Process(target=send_message, args=(name, message)).start()
+                multiprocessing.Process(target=send_message, args=(name, message, clients)).start()
 
                 if name == nick:
                     safe_name = escape(name)
@@ -99,11 +88,11 @@ def server(host, nick, port):
         messages.append({'name': safe_name, 'message': safe_message})
         return "Ok"
 
-    print(f"Server running on http://{host}:{port}")
     serve(app, host=host, port=port)
 
 
-def send_message(name, message):
+def send_message(name, message, clients):
+    import requests
     if message == "" or name == "":
         pass
     else:
