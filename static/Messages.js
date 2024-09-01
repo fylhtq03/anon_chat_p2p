@@ -1,10 +1,9 @@
 $(document).ready(function() {
-        var csrfToken = $("meta[name='csrf-token']").attr('content');
         function postMessage() {
           var message = $('#message').val();
           var name = $('#name').val();
           if (message !== '' && name !== '') {
-            $.post('/post_message', {message: message, name: name, csrf_token: csrfToken}, function(data) {
+            $.post('/post_message', {message: message, name: name}, function(data) {
               if (data.status === 'OK') {
                 $('#message').val('');
               }
